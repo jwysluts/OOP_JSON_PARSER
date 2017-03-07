@@ -13,9 +13,12 @@ Due Date: 3/7/2016
 
 struct Value
 {
-    virtual int weight()=0;
+    virtual int weight()
+    {
+        return 1;
+    }
 
-    virtual Value* parse(std::string, int&) =0;
+    virtual Value* parse(std::string, int&, int&) =0;
 
     virtual ~Value()=default;
 };
@@ -23,7 +26,7 @@ struct Value
 struct Null: public Value
 {
     std::string null;
-    Value* parse(std::string jsonData, int &k)
+    Value* parse(std::string jsonData, int &k, int &test)
     {
         null="";
         while(jsonData[k]!=','&&jsonData[k]!='}'&&jsonData[k]!=']')
@@ -31,38 +34,31 @@ struct Null: public Value
             null+=jsonData[k];
             k++;
         }
+        test++;
         return this;
-    }
-    int weight()
-    {
-        return 1;
     }
 };
 
 struct Bool: public Value
 {
     std:: string boolean;
-    Value* parse(std::string jsonData, int &k)
+    Value* parse(std::string jsonData, int &k, int &test)
     {
         boolean = "";
-        while(jsonData[k]!=','&& jsonData[k]!='}' && jsonData[k]!=']')
+        while(jsonData[k]=','&& jsonData[k]!='}' && jsonData[k]!=']')
         {
             boolean += jsonData[k];
             k++;
         }
+        test++;
         return this;
-    }
-
-    int weight()
-    {
-        return 1;
     }
 };
 
-struct String: public Value, std::string
+struct String: public Value
 {
     std::string str;
-    Value* parse(std::string jsonData, int &k)
+    Value* parse(std::string jsonData, int &k, int &test)
     {
         str="";
         k++;
@@ -70,12 +66,11 @@ struct String: public Value, std::string
         {
             if(jsonData[k]=='\\')
                 k++;
+            str+=jsonData[k];
+            k++;
         }
-    }
-
-    int weight()
-    {
-        return 1;
+        test++;
+        return this;
     }
 };
 
@@ -83,7 +78,7 @@ struct Number: public Value
 {
     std::string number;
 
-    Value* parse(std::string jsonData, int &k)
+    Value* parse(std::string jsonData, int &k, int &test)
     {
         number = "";
         while(jsonData[k]=='-' || isdigit(jsonData[k]) || jsonData[k]=='e' || jsonData[k]=='.')
@@ -91,36 +86,23 @@ struct Number: public Value
             number+=jsonData[k];
             k++;
         }
+        test++;
         return this;
-    }
-
-    int weight()
-    {
-        return 1;
     }
 };
 
 struct Array: public Value, std::vector<Value*>
 {
-    Value* parse(std::string, int&);
+    std::vector<Value*> jsonArray;
+    Value* parse(std::string, int&,int&);
 
-    int weight()
-    {
-        int total=1;
-        int vSize=this->size();
-
-        for(int i=0; i<vSize; i++)
-        {
-            total += this[i].weight();
-        }
-
-        return total;
-    }
+    int weight();
 };
 
-struct Object: public Value, std::vector<std::pair<std::string,Value*>>
+struct Object: public Value
 {
-    Value* parse(std::string jsonData, int& k)
+    std::vector<std::pair<std::string, Value*>> jsonObject;
+    Value* parse(std::string jsonData, int& k, int &test)
     {
         //Declare values that may be contained in object
         Object contObject;
@@ -132,6 +114,8 @@ struct Object: public Value, std::vector<std::pair<std::string,Value*>>
 
         std::string valueName="";
         std::pair<std::string, Value*> orderedPair;
+        int counter=0;
+
         while(jsonData[k]!='}')
         {
             while (valueName=="")
@@ -149,64 +133,78 @@ struct Object: public Value, std::vector<std::pair<std::string,Value*>>
                             valueName+=jsonData[k];
                             k++;
                         }
+                    k++;
                 }
             }
             if(jsonData[k]=='"')
             {
-                orderedPair= std::make_pair(valueName,contString.parse(jsonData,k));
-                this->push_back(orderedPair);
+                orderedPair= std::make_pair(valueName,contString.parse(jsonData,k,test));
+                jsonObject.push_back(orderedPair);
                 valueName = "";
+                counter++;
             }
 
             else if(jsonData[k]=='-' || isdigit(jsonData[k]))
             {
-                orderedPair=std::make_pair(valueName,contNumber.parse(jsonData,k));
-                this->push_back(orderedPair);
+                orderedPair=std::make_pair(valueName,contNumber.parse(jsonData,k,test));
+                jsonObject.push_back(orderedPair);
                 valueName = "";
+                counter++;
             }
             else if(jsonData[k]=='t'||jsonData[k]=='f')
             {
-                orderedPair = std::make_pair(valueName,contBool.parse(jsonData,k));
-                this->push_back(orderedPair);
+                orderedPair = std::make_pair(valueName,contBool.parse(jsonData,k,test));
+                jsonObject.push_back(orderedPair);
                 valueName = "";
+                counter++;
             }
             else if(jsonData[k]=='n')
             {
-                orderedPair = std::make_pair(valueName,contNull.parse(jsonData,k));
-                this->push_back(orderedPair);
+                orderedPair = std::make_pair(valueName,contNull.parse(jsonData,k,test));
+                jsonObject.push_back(orderedPair);
                 valueName = "";
+                counter++;
             }
             else if(jsonData[k]=='[')
             {
-                orderedPair = std::make_pair(valueName,contArray.parse(jsonData,k));
-                this->push_back(orderedPair);
+                orderedPair = std::make_pair(valueName,contArray.parse(jsonData,k,test));
+                jsonObject.push_back(orderedPair);
                 valueName = "";
+                counter++;
             }
             else if(jsonData[k]=='{')
             {
-                orderedPair = std::make_pair(valueName,contObject.parse(jsonData, k));
-                this->push_back(orderedPair);
+                orderedPair = std::make_pair(valueName,contObject.parse(jsonData, k,test));
+                jsonObject.push_back(orderedPair);
                 valueName = "";
+                counter++;
             }
-
+            if(jsonData[k]=='}')
+            {
+                test++;
+                return this;
+            }
             k++;
         }
+        test++;
+        test+=counter;
+        return this;
 }
 
     int weight()
     {
+        std::cout<<"Calculating Object Weight..."<<std::endl;
         int total = 1;
-        std::vector<std::pair<std::string, Value*>>::iterator it;
-        Value* temp;
-        for(it=this->begin(); it<this->end();it++)
+
+        for(int i=0; i<jsonObject.size();i++)
         {
-            total+=it->second->weight();
+            total+=jsonObject[i].second->weight();
         }
         return total;
     }
 };
 
-Value* Array::parse(std::string jsonData, int &k)
+Value* Array::parse(std::string jsonData, int &k,int& test)
 {
     //Declare values that may be contained in Array
         Object contObject;
@@ -217,37 +215,58 @@ Value* Array::parse(std::string jsonData, int &k)
         String contString;
 
         std::string valueName;
+        int counter = 0;
 
         while(jsonData[k]!=']')
         {
+            k++;
             if(jsonData[k]=='"')
             {
-                this->push_back(contString.parse(jsonData,k));
+                jsonArray.push_back(contString.parse(jsonData,k,test));
+                counter++;
             }
             else if(jsonData[k]=='-'||isdigit(jsonData[k]))
             {
-                this->push_back(contNumber.parse(jsonData,k));
+                jsonArray.push_back(contNumber.parse(jsonData,k,test));
+                counter++;
             }
             else if(jsonData[k]=='t'||jsonData[k]=='f')
             {
-                this->push_back(contBool.parse(jsonData,k));
+                jsonArray.push_back(contBool.parse(jsonData,k,test));
+                counter++;
             }
             else if(jsonData[k]=='n')
             {
-                this->push_back(contNull.parse(jsonData,k));
+                jsonArray.push_back(contNull.parse(jsonData,k,test));
+                counter++;
             }
             else if(jsonData[k]=='[')
             {
-                this->push_back(contArray.parse(jsonData,k));
+                jsonArray.push_back(contArray.parse(jsonData,k,test));
+                counter++;
             }
             else if(jsonData[k]=='{')
             {
-                this->push_back(contObject.parse(jsonData, k));
+                jsonArray.push_back(contObject.parse(jsonData, k,test));
+                counter++;
             }
-
-            k++;
         }
+        test++;
+        test+=counter;
         return this;
+}
+
+int Array::weight()
+{
+    int total=1;
+    int vSize=this->size();
+
+    for(int i=0; i<vSize; i++)
+    {
+        total += this[i].weight();
+    }
+
+    return total;
 }
 
 int main(int argc, char*argv[])
@@ -264,6 +283,8 @@ int main(int argc, char*argv[])
     std::vector<Value*> jstructure;
 
     int weight = 0;
+
+    int total=0;
 
     std::string fileName = argv[1];
     std::ifstream json;
@@ -288,20 +309,22 @@ int main(int argc, char*argv[])
 
     int jsonSize =jsonData.size();
 
-    for(int k=0; k<jsonSize;k++)
+    int k=0;
+    std::cout<<"Begin Processing of JSON File"<<std::endl;
+    do
     {
         switch(jsonData[k])
         {
             case '{':
-                jstructure.push_back(jobject.parse(jsonData, k));
+                jstructure.push_back(jobject.parse(jsonData, k, total));
                 break;
 
             case '[':
-                jstructure.push_back(jarray.parse(jsonData,k));
+                jstructure.push_back(jarray.parse(jsonData,k, total));
                 break;
 
             case '"':
-                jstructure.push_back(jstring.parse(jsonData,k));
+                jstructure.push_back(jstring.parse(jsonData,k, total));
                 break;
 
             case '-':
@@ -314,31 +337,38 @@ int main(int argc, char*argv[])
             case '6':
             case '7':
             case '8':
-            case '9':jstructure.push_back(jnumber.parse(jsonData,k));
+            case '9':jstructure.push_back(jnumber.parse(jsonData,k,total));
                 break;
 
             case 't':
-            case 'f':jstructure.push_back(jbool.parse(jsonData,k));
+            case 'f':jstructure.push_back(jbool.parse(jsonData,k,total));
                 break;
 
-            case 'n':jstructure.push_back(jnull.parse(jsonData,k));
+            case 'n':jstructure.push_back(jnull.parse(jsonData,k,total));
                 break;
 
             default:
                 break;
         }
+        k++;
     }
+    while(k<jsonSize);
 
-    int total=0;
+    std::cout<<"Finished Processing"<<std::endl;
+
+
     int vSize=jstructure.size();
-    std::vector<Value*>::iterator it;
+/*
+    std::cout<<"Calculating Weight..."<<std::endl;
 
     for(int i=0; i<vSize;i++)
     {
         total+=jstructure[i]->weight();
     }
 
-    std::cout<<"Weight of file " << fileName<<" is: "<<total<<std::endl;
+*/
+
+    std::cout<<"Weight of file " << fileName <<" is: "<<total<<std::endl;
 
     return 0;
 }
